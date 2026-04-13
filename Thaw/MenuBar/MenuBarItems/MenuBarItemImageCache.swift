@@ -128,6 +128,7 @@ final class MenuBarItemImageCache: ObservableObject {
     func performSetup(with appState: AppState) {
         self.appState = appState
         configureCancellables()
+        migrateLegacyDiskCacheIfNeeded()
 
         // Try to load cached images from disk
         loadFromDisk()
@@ -143,8 +144,41 @@ final class MenuBarItemImageCache: ObservableObject {
         return cacheDir?.appendingPathComponent("\(Constants.bundleIdentifier.lowercased())/imageCache.json")
     }
 
+    /// Legacy path used before the cache was namespaced with the current app.
+    private static var legacyCacheFileURL: URL? {
+        let cacheDir = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first
+        return cacheDir?.appendingPathComponent("com.stonerl.thaw/imageCache.json")
+    }
+
     /// Maximum age of disk cache before it's considered stale (30 seconds).
     private static let maxCacheAgeSeconds: TimeInterval = 30
+
+    /// Copies the legacy disk cache into the new app-specific location so
+    /// existing data is preserved after the cache namespace change.
+    private func migrateLegacyDiskCacheIfNeeded() {
+        guard
+            let newURL = Self.cacheFileURL,
+            let legacyURL = Self.legacyCacheFileURL,
+            newURL != legacyURL
+        else {
+            return
+        }
+
+        let fileManager = FileManager.default
+        guard !fileManager.fileExists(atPath: newURL.path) else { return }
+        guard fileManager.fileExists(atPath: legacyURL.path) else { return }
+
+        do {
+            try fileManager.createDirectory(
+                at: newURL.deletingLastPathComponent(),
+                withIntermediateDirectories: true
+            )
+            try fileManager.copyItem(at: legacyURL, to: newURL)
+            Self.diagLog.info("Copied legacy image cache from \(legacyURL.path) to \(newURL.path)")
+        } catch {
+            Self.diagLog.error("Failed to copy legacy image cache to the new location: \(error)")
+        }
+    }
 
     /// Saves the image cache to disk for faster restart.
     func saveToDisk() {
