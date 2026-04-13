@@ -138,7 +138,9 @@ final class MenuBarItemImageCache: ObservableObject {
     /// Path to the cache file in Caches directory.
     private static var cacheFileURL: URL? {
         let cacheDir = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first
-        return cacheDir?.appendingPathComponent("com.stonerl.thaw/imageCache.json")
+        // Namespace the disk cache with the current bundle identifier so it
+        // doesn't collide with data from the legacy/original app.
+        return cacheDir?.appendingPathComponent("\(Constants.bundleIdentifier.lowercased())/imageCache.json")
     }
 
     /// Maximum age of disk cache before it's considered stale (30 seconds).
