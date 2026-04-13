@@ -27,11 +27,11 @@ extension Bundle {
     /// This accessor checks the bundle's `Info.plist` for a string value associated
     /// with the "CFBundleDisplayName" key. If a valid value cannot be found for the
     /// key, the same check is performed for the "CFBundleName" key. If a valid value
-    /// cannot be found for either key, this accessor returns `Thaw`.
+    /// cannot be found for either key, this accessor returns `Thaw-Plus`.
     var displayName: String {
         object(forInfoDictionaryKey: "CFBundleDisplayName") as? String ??
             object(forInfoDictionaryKey: "CFBundleName") as? String ??
-            "Thaw"
+            "Thaw-Plus"
     }
 
     /// The bundle's version string.

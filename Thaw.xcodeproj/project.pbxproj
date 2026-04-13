@@ -39,7 +39,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		7166832A2A767E6A006ABF84 /* Thaw.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Thaw.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		7166832A2A767E6A006ABF84 /* Thaw-Plus.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Thaw-Plus.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		7188A6832E27F9ED008F131D /* MenuBarItemService.xpc */ = {isa = PBXFileReference; explicitFileType = "wrapper.xpc-service"; includeInIndex = 0; path = MenuBarItemService.xpc; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -117,7 +117,7 @@
 		7166832B2A767E6A006ABF84 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				7166832A2A767E6A006ABF84 /* Thaw.app */,
+				7166832A2A767E6A006ABF84 /* Thaw-Plus.app */,
 				7188A6832E27F9ED008F131D /* MenuBarItemService.xpc */,
 			);
 			name = Products;
@@ -153,8 +153,8 @@
 				17F71BB42B880B4500905CBA /* CompactSlider */,
 				7127A9FE2C4886D100D99DEF /* IfritStatic */,
 			);
-			productName = Ice;
-			productReference = 7166832A2A767E6A006ABF84 /* Thaw.app */;
+			productName = "Thaw-Plus";
+			productReference = 7166832A2A767E6A006ABF84 /* Thaw-Plus.app */;
 			productType = "com.apple.product-type.application";
 		};
 		7188A6822E27F9ED008F131D /* MenuBarItemService */ = {
@@ -444,6 +444,8 @@
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Thaw/Resources/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "Thaw-Plus";
+				INFOPLIST_KEY_CFBundleName = "Thaw-Plus";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_LSUIElement = YES;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "Copyright © 2026 Toni Förster\nCopyright © 2023–2025 Jordan Baird (Ice) ";
@@ -452,8 +454,8 @@
 					"@executable_path/../Frameworks",
 				);
 				MARKETING_VERSION = "1.2.0-rc.4";
-				PRODUCT_BUNDLE_IDENTIFIER = com.stonerl.Thaw;
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_BUNDLE_IDENTIFIER = com.stonerl.ThawPlus;
+				PRODUCT_NAME = "Thaw-Plus";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 			};
@@ -479,6 +481,8 @@
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Thaw/Resources/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "Thaw-Plus";
+				INFOPLIST_KEY_CFBundleName = "Thaw-Plus";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_LSUIElement = YES;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "Copyright © 2026 Toni Förster\nCopyright © 2023–2025 Jordan Baird (Ice) ";
@@ -487,8 +491,8 @@
 					"@executable_path/../Frameworks",
 				);
 				MARKETING_VERSION = "1.2.0-rc.4";
-				PRODUCT_BUNDLE_IDENTIFIER = com.stonerl.Thaw;
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_BUNDLE_IDENTIFIER = com.stonerl.ThawPlus;
+				PRODUCT_NAME = "Thaw-Plus";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 			};
@@ -509,7 +513,7 @@
 				INFOPLIST_KEY_NSHumanReadableCopyright = "Copyright © 2026 Toni Förster\nCopyright © 2023–2025 Jordan Baird (Ice) ";
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MARKETING_VERSION = "1.2.0-rc.4";
-				PRODUCT_BUNDLE_IDENTIFIER = com.stonerl.Thaw.MenuBarItemService;
+				PRODUCT_BUNDLE_IDENTIFIER = com.stonerl.ThawPlus.MenuBarItemService;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
 				SKIP_INSTALL = YES;
@@ -537,7 +541,7 @@
 				INFOPLIST_KEY_NSHumanReadableCopyright = "Copyright © 2026 Toni Förster\nCopyright © 2023–2025 Jordan Baird (Ice) ";
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MARKETING_VERSION = "1.2.0-rc.4";
-				PRODUCT_BUNDLE_IDENTIFIER = com.stonerl.Thaw.MenuBarItemService;
+				PRODUCT_BUNDLE_IDENTIFIER = com.stonerl.ThawPlus.MenuBarItemService;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
 				SKIP_INSTALL = YES;

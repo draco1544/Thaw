@@ -246,6 +246,7 @@ extension Defaults {
         case hasMigrated0_11_13
         case hasMigrated0_11_13_1
         case hasMigratedPerDisplayIceBar
+        case hasMigratedLegacyBundleIdentifier
 
         // MARK: First Launch
 

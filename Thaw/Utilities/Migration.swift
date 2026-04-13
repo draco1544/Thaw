@@ -26,6 +26,8 @@ extension MigrationManager {
     func migrateAll() {
         var results = [MigrationResult]()
 
+        results.append(migrateLegacyBundleIdentifier())
+
         do {
             try performAll(blocks: [
                 migrate0_8_0,
@@ -55,6 +57,48 @@ extension MigrationManager {
                 diagLog.error("Migration failed with error \(error)")
             }
         }
+    }
+}
+
+// MARK: - Migrate 0.8.0
+
+extension MigrationManager {
+    /// Migrates the app's defaults domain after a bundle identifier change.
+    private func migrateLegacyBundleIdentifier() -> MigrationResult {
+        guard !Defaults.bool(forKey: .hasMigratedLegacyBundleIdentifier) else {
+            return .success
+        }
+
+        let legacyBundleIdentifier = "com.stonerl.Thaw"
+        let currentBundleIdentifier = Constants.bundleIdentifier
+
+        guard currentBundleIdentifier != legacyBundleIdentifier else {
+            Defaults.set(true, forKey: .hasMigratedLegacyBundleIdentifier)
+            return .success
+        }
+
+        let currentDomain = UserDefaults.standard.persistentDomain(forName: currentBundleIdentifier) ?? [:]
+        guard currentDomain.isEmpty else {
+            Defaults.set(true, forKey: .hasMigratedLegacyBundleIdentifier)
+            diagLog.info("Bundle identifier migration skipped: current domain already contains \(currentDomain.count) entries")
+            return .success
+        }
+
+        guard
+            let legacyDefaults = UserDefaults(suiteName: legacyBundleIdentifier),
+            let legacyDomain = legacyDefaults.persistentDomain(forName: legacyBundleIdentifier),
+            !legacyDomain.isEmpty
+        else {
+            Defaults.set(true, forKey: .hasMigratedLegacyBundleIdentifier)
+            diagLog.info("Bundle identifier migration skipped: no legacy settings found")
+            return .success
+        }
+
+        UserDefaults.standard.setPersistentDomain(legacyDomain, forName: currentBundleIdentifier)
+        Defaults.set(true, forKey: .hasMigratedLegacyBundleIdentifier)
+        diagLog.info("Migrated \(legacyDomain.count) settings from \(legacyBundleIdentifier) to \(currentBundleIdentifier)")
+
+        return .success
     }
 }
 
