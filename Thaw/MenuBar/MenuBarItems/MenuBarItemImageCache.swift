@@ -399,10 +399,8 @@ final class MenuBarItemImageCache: ObservableObject {
                 || (nav.isSettingsPresented && nav.settingsNavigationIdentifier == .menuBarLayout)
             {
                 sections = MenuBarSection.Name.allCases
-            } else if nav.isIceBarPresented,
-                      let current = appState.menuBarManager.iceBarPanel.currentSection
-            {
-                sections = [current]
+            } else if nav.isIceBarPresented {
+                sections = await iceBarDisplayedSections(appState: appState)
             } else {
                 // No consumer visible on this tick — keep looping so the
                 // Combine observer can properly cancel the task. Using
@@ -422,6 +420,24 @@ final class MenuBarItemImageCache: ObservableObject {
     }
 
     // MARK: Capturing Images
+
+    /// Returns the sections that currently need image refreshes while the
+    /// IceBar is visible. When a hidden section is shown alongside overflowed
+    /// visible items, both sections must be refreshed.
+    @MainActor
+    private func iceBarDisplayedSections(appState: AppState) -> [MenuBarSection.Name] {
+        guard let current = appState.menuBarManager.iceBarPanel.currentSection else {
+            return []
+        }
+
+        var sections = [current]
+        if (current == .hidden || current == .alwaysHidden),
+           !appState.menuBarManager.overflowedVisibleItemTags.isEmpty
+        {
+            sections.append(.visible)
+        }
+        return sections
+    }
 
     /// Captures a composite image of the given items, then crops out an image
     /// for each item and returns the result.
@@ -1248,10 +1264,8 @@ final class MenuBarItemImageCache: ObservableObject {
 
         if isSettingsPresented || isSearchPresented {
             sectionsNeedingDisplay = MenuBarSection.Name.allCases
-        } else if isIceBarPresented, let section = await appState.menuBarManager.iceBarPanel
-            .currentSection
-        {
-            sectionsNeedingDisplay.append(section)
+        } else if isIceBarPresented {
+            sectionsNeedingDisplay = await iceBarDisplayedSections(appState: appState)
         }
 
         await updateCache(

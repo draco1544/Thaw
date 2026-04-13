@@ -379,13 +379,25 @@ private struct IceBarContentView: View {
         presentation.section
     }
 
-    private var items: [MenuBarItem] {
+    private var overflowedVisibleItemTags: Set<MenuBarItemTag> {
+        appState.menuBarManager.overflowedVisibleItemTags
+    }
+
+    private var overflowedVisibleItems: [MenuBarItem] {
         let visibleItems = itemManager.itemCache.managedItems(for: .visible)
+        return visibleItems.filter { overflowedVisibleItemTags.contains($0.tag) }
+    }
+
+    private var items: [MenuBarItem] {
         switch presentation {
         case let .section(section):
-            return itemManager.itemCache.managedItems(for: section)
+            let sectionItems = itemManager.itemCache.managedItems(for: section)
+            guard section == .hidden || section == .alwaysHidden else {
+                return sectionItems
+            }
+            return overflowedVisibleItems + sectionItems
         case let .visibleOverflow(itemTags):
-            return visibleItems.filter { itemTags.contains($0.tag) }
+            return overflowedVisibleItems.filter { itemTags.contains($0.tag) }
         }
     }
 
@@ -592,6 +604,7 @@ private struct IceBarContentView: View {
                             imageCache: imageCache,
                             itemManager: itemManager,
                             item: item,
+                            isOverflowedVisibleItem: overflowedVisibleItemTags.contains(item.tag),
                             presentation: presentation,
                             dismissPresentation: dismissPresentation,
                             displayID: screen.displayID,
@@ -623,12 +636,17 @@ private struct IceBarItemView: View {
     @State private var isHovered = false
 
     let item: MenuBarItem
+    let isOverflowedVisibleItem: Bool
     let presentation: IceBarPresentation
     let dismissPresentation: () -> Void
     let displayID: CGDirectDisplayID
     let maxHeight: CGFloat?
     let tooltipDelay: TimeInterval
     let isLightBackground: Bool
+
+    private var prefersTemporaryShow: Bool {
+        presentation.isVisibleOverflow || isOverflowedVisibleItem
+    }
 
     private var leftClickAction: () -> Void {
         return { [weak itemManager] in
@@ -640,7 +658,7 @@ private struct IceBarItemView: View {
             dismissPresentation()
             Task {
                 try await Task.sleep(for: .milliseconds(25))
-                if !presentation.isVisibleOverflow, Bridging.isWindowOnScreen(item.windowID) {
+                if !prefersTemporaryShow, Bridging.isWindowOnScreen(item.windowID) {
                     try await itemManager.click(item: item, with: .left)
                     let duration = Date.now.timeIntervalSince(clickStartTime)
                     IceBarItemView.diagLog.debug("leftClick: ✓ completed in \(Int(duration * 1000))ms (on-screen path)")
@@ -661,7 +679,7 @@ private struct IceBarItemView: View {
             dismissPresentation()
             Task {
                 try await Task.sleep(for: .milliseconds(25))
-                if !presentation.isVisibleOverflow, Bridging.isWindowOnScreen(item.windowID) {
+                if !prefersTemporaryShow, Bridging.isWindowOnScreen(item.windowID) {
                     try await itemManager.click(item: item, with: .right)
                 } else {
                     await itemManager.temporarilyShow(item: item, clickingWith: .right, on: displayID)
