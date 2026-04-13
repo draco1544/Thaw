@@ -49,6 +49,10 @@ final class MenuBarManager: ObservableObject {
     /// Cancellable for the periodic average-color refresh, active only while settings is visible.
     private var averageColorRefreshCancellable: AnyCancellable?
 
+    /// Task that retries visible-overflow refreshes while the frontmost app's
+    /// menu bar is settling after an app switch.
+    private var visibleOverflowRefreshTask: Task<Void, Never>?
+
     /// A Boolean value that indicates whether the application menus are hidden.
     private var isHidingApplicationMenus = false
 
@@ -99,6 +103,8 @@ final class MenuBarManager: ObservableObject {
     private func configureCancellables() {
         averageColorRefreshCancellable?.cancel()
         averageColorRefreshCancellable = nil
+        visibleOverflowRefreshTask?.cancel()
+        visibleOverflowRefreshTask = nil
         var c = Set<AnyCancellable>()
 
         NSApp.publisher(for: \.currentSystemPresentationOptions)
@@ -138,7 +144,7 @@ final class MenuBarManager: ObservableObject {
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
                 defer {
-                    self?.updateVisibleOverflowState()
+                    self?.scheduleVisibleOverflowRefresh()
                 }
                 if
                     let self,
@@ -192,14 +198,14 @@ final class MenuBarManager: ObservableObject {
                 .receive(on: DispatchQueue.main)
                 .sink { [weak self] _ in
                     self?.updateControlItemStates()
-                    self?.updateVisibleOverflowState()
+                    self?.updateVisibleOverflowState(bypassMenuFrameCache: true)
                 }
                 .store(in: &c)
 
             appState.itemManager.$itemCache
                 .receive(on: DispatchQueue.main)
                 .sink { [weak self] _ in
-                    self?.updateVisibleOverflowState()
+                    self?.updateVisibleOverflowState(bypassMenuFrameCache: true)
                 }
                 .store(in: &c)
 
@@ -532,9 +538,15 @@ final class MenuBarManager: ObservableObject {
 
     /// Recomputes which visible items are currently masked by the active app's
     /// menus and refreshes the Thaw Bar overflow presentation if needed.
-    func updateVisibleOverflowState(for screen: NSScreen? = nil) {
+    func updateVisibleOverflowState(
+        for screen: NSScreen? = nil,
+        bypassMenuFrameCache: Bool = false
+    ) {
         let activeScreen = screen ?? NSScreen.screenWithActiveMenuBar ?? NSScreen.main
-        let overflowTags = computeOverflowedVisibleItemTags(on: activeScreen)
+        let overflowTags = computeOverflowedVisibleItemTags(
+            on: activeScreen,
+            bypassMenuFrameCache: bypassMenuFrameCache
+        )
 
         if overflowedVisibleItemTags != overflowTags {
             overflowedVisibleItemTags = overflowTags
@@ -543,9 +555,33 @@ final class MenuBarManager: ObservableObject {
         refreshVisibleOverflowPresentation(on: activeScreen)
     }
 
+    /// Retries visible-overflow detection for a short period after the
+    /// frontmost app changes, because AppKit/AX can briefly report a stale
+    /// menu frame during the handoff.
+    private func scheduleVisibleOverflowRefresh(for screen: NSScreen? = nil) {
+        visibleOverflowRefreshTask?.cancel()
+        updateVisibleOverflowState(for: screen, bypassMenuFrameCache: true)
+
+        visibleOverflowRefreshTask = Task { @MainActor [weak self] in
+            for _ in 0 ..< 8 {
+                try? await Task.sleep(for: .milliseconds(100))
+                guard let self, !Task.isCancelled else {
+                    return
+                }
+                self.updateVisibleOverflowState(
+                    for: screen,
+                    bypassMenuFrameCache: true
+                )
+            }
+        }
+    }
+
     /// Computes the set of visible-section items that are no longer usable
     /// because the active app's menu titles extend into their space.
-    private func computeOverflowedVisibleItemTags(on screen: NSScreen?) -> Set<MenuBarItemTag> {
+    private func computeOverflowedVisibleItemTags(
+        on screen: NSScreen?,
+        bypassMenuFrameCache: Bool = false
+    ) -> Set<MenuBarItemTag> {
         guard
             let appState,
             let screen
@@ -559,7 +595,9 @@ final class MenuBarManager: ObservableObject {
             !isMenuBarHiddenBySystemUserDefaults,
             !appState.navigationState.isSettingsPresented,
             appState.settings.displaySettings.showOverflowedVisibleItemsInIceBar(for: screen.displayID),
-            let appMenuFrame = screen.getApplicationMenuFrame()
+            let appMenuFrame = screen.getApplicationMenuFrame(
+                bypassCache: bypassMenuFrameCache
+            )
         else {
             return []
         }
