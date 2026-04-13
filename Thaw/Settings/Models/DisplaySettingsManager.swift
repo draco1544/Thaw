@@ -117,6 +117,11 @@ final class DisplaySettingsManager: ObservableObject {
         configuration(for: displayID).alwaysShowHiddenItems
     }
 
+    /// Whether overflowed visible items should be shown in the Ice Bar for the given display.
+    func showOverflowedVisibleItemsInIceBar(for displayID: CGDirectDisplayID) -> Bool {
+        configuration(for: displayID).showOverflowedVisibleItemsInIceBar
+    }
+
     /// Whether any connected display has the Ice Bar enabled.
     var isIceBarEnabledOnAnyDisplay: Bool {
         configurations.values.contains { $0.useIceBar }

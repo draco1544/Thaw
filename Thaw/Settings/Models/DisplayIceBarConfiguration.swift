@@ -21,19 +21,63 @@ struct DisplayIceBarConfiguration: Codable, Equatable {
     /// This setting is only applicable when ``useIceBar`` is `false`.
     let alwaysShowHiddenItems: Bool
 
+    /// Whether overflowed visible menu bar items should appear in the Ice Bar.
+    let showOverflowedVisibleItemsInIceBar: Bool
+
+    /// Coding keys for backward-compatible persistence.
+    private enum CodingKeys: String, CodingKey {
+        case useIceBar
+        case iceBarLocation
+        case alwaysShowHiddenItems
+        case showOverflowedVisibleItemsInIceBar
+    }
+
+    init(
+        useIceBar: Bool,
+        iceBarLocation: IceBarLocation,
+        alwaysShowHiddenItems: Bool,
+        showOverflowedVisibleItemsInIceBar: Bool
+    ) {
+        self.useIceBar = useIceBar
+        self.iceBarLocation = iceBarLocation
+        self.alwaysShowHiddenItems = alwaysShowHiddenItems
+        self.showOverflowedVisibleItemsInIceBar = showOverflowedVisibleItemsInIceBar
+    }
+
     /// Default configuration (disabled, dynamic location).
     static let defaultConfiguration = DisplayIceBarConfiguration(
         useIceBar: false,
         iceBarLocation: .dynamic,
-        alwaysShowHiddenItems: false
+        alwaysShowHiddenItems: false,
+        showOverflowedVisibleItemsInIceBar: false
     )
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        useIceBar = try container.decode(Bool.self, forKey: .useIceBar)
+        iceBarLocation = try container.decode(IceBarLocation.self, forKey: .iceBarLocation)
+        alwaysShowHiddenItems = try container.decode(Bool.self, forKey: .alwaysShowHiddenItems)
+        showOverflowedVisibleItemsInIceBar = try container.decodeIfPresent(
+            Bool.self,
+            forKey: .showOverflowedVisibleItemsInIceBar
+        ) ?? false
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(useIceBar, forKey: .useIceBar)
+        try container.encode(iceBarLocation, forKey: .iceBarLocation)
+        try container.encode(alwaysShowHiddenItems, forKey: .alwaysShowHiddenItems)
+        try container.encode(showOverflowedVisibleItemsInIceBar, forKey: .showOverflowedVisibleItemsInIceBar)
+    }
 
     /// Returns a new configuration with the `useIceBar` flag replaced.
     func withUseIceBar(_ value: Bool) -> DisplayIceBarConfiguration {
         DisplayIceBarConfiguration(
             useIceBar: value,
             iceBarLocation: iceBarLocation,
-            alwaysShowHiddenItems: alwaysShowHiddenItems
+            alwaysShowHiddenItems: alwaysShowHiddenItems,
+            showOverflowedVisibleItemsInIceBar: showOverflowedVisibleItemsInIceBar
         )
     }
 
@@ -42,7 +86,8 @@ struct DisplayIceBarConfiguration: Codable, Equatable {
         DisplayIceBarConfiguration(
             useIceBar: useIceBar,
             iceBarLocation: value,
-            alwaysShowHiddenItems: alwaysShowHiddenItems
+            alwaysShowHiddenItems: alwaysShowHiddenItems,
+            showOverflowedVisibleItemsInIceBar: showOverflowedVisibleItemsInIceBar
         )
     }
 
@@ -51,7 +96,18 @@ struct DisplayIceBarConfiguration: Codable, Equatable {
         DisplayIceBarConfiguration(
             useIceBar: useIceBar,
             iceBarLocation: iceBarLocation,
-            alwaysShowHiddenItems: value
+            alwaysShowHiddenItems: value,
+            showOverflowedVisibleItemsInIceBar: showOverflowedVisibleItemsInIceBar
+        )
+    }
+
+    /// Returns a new configuration with the `showOverflowedVisibleItemsInIceBar` flag replaced.
+    func withShowOverflowedVisibleItemsInIceBar(_ value: Bool) -> DisplayIceBarConfiguration {
+        DisplayIceBarConfiguration(
+            useIceBar: useIceBar,
+            iceBarLocation: iceBarLocation,
+            alwaysShowHiddenItems: alwaysShowHiddenItems,
+            showOverflowedVisibleItemsInIceBar: value
         )
     }
 
@@ -70,7 +126,8 @@ struct DisplayIceBarConfiguration: Codable, Equatable {
             configs[uuid] = DisplayIceBarConfiguration(
                 useIceBar: enabled,
                 iceBarLocation: location,
-                alwaysShowHiddenItems: false
+                alwaysShowHiddenItems: false,
+                showOverflowedVisibleItemsInIceBar: false
             )
         }
         return configs

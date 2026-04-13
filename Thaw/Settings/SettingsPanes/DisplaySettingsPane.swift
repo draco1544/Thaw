@@ -50,6 +50,15 @@ struct DisplaySettingsPane: View {
             }
         )
 
+        let showOverflowedVisibleItemsInIceBar = Binding<Bool>(
+            get: { displaySettings.configuration(for: display.displayID).showOverflowedVisibleItemsInIceBar },
+            set: { newValue in
+                displaySettings.updateConfiguration(forDisplayUUID: display.id) { config in
+                    config.withShowOverflowedVisibleItemsInIceBar(newValue)
+                }
+            }
+        )
+
         VStack(alignment: .leading, spacing: 4) {
             HStack {
                 Text(display.name)
@@ -74,6 +83,9 @@ struct DisplaySettingsPane: View {
                     Text("Always show hidden menu bar items in the menu bar on this display.")
                 }
             }
+
+        Toggle("Show overflowed visible items in \(Constants.displayName) Bar", isOn: showOverflowedVisibleItemsInIceBar)
+            .annotation("Show visible menu bar items that are covered by an app in the \(Constants.displayName) Bar on this display.")
 
         Toggle("Use \(Constants.displayName) Bar", isOn: useIceBar)
             .annotation("Show hidden menu bar items in a separate bar below the menu bar on this display.")

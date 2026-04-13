@@ -12,6 +12,10 @@ import SwiftUI
 /// Manager for the state of the menu bar.
 @MainActor
 final class MenuBarManager: ObservableObject {
+    /// Visible-section items currently masked by the active app's menus and
+    /// eligible for temporary presentation in the Thaw Bar.
+    @Published private(set) var overflowedVisibleItemTags = Set<MenuBarItemTag>()
+
     /// Information for the menu bar's average color.
     @Published private(set) var averageColorInfo: MenuBarAverageColorInfo?
 
@@ -69,6 +73,9 @@ final class MenuBarManager: ObservableObject {
         MenuBarSection(name: .alwaysHidden),
     ]
 
+    /// The gap that macOS leaves to either side of the notch.
+    private static let notchGap: CGFloat = 24
+
     /// A Boolean value that indicates whether at least one of the manager's
     /// sections is visible.
     var hasVisibleSection: Bool {
@@ -85,6 +92,7 @@ final class MenuBarManager: ObservableObject {
         for section in sections {
             section.performSetup(with: appState)
         }
+        updateVisibleOverflowState()
     }
 
     /// Configures the internal observers for the manager.
@@ -101,6 +109,7 @@ final class MenuBarManager: ObservableObject {
                 }
                 let hidden = options.contains(.hideMenuBar) || options.contains(.autoHideMenuBar)
                 isMenuBarHiddenBySystem = hidden
+                updateVisibleOverflowState()
             }
             .store(in: &c)
 
@@ -128,6 +137,9 @@ final class MenuBarManager: ObservableObject {
         NSWorkspace.shared.publisher(for: \.frontmostApplication)
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
+                defer {
+                    self?.updateVisibleOverflowState()
+                }
                 if
                     let self,
                     let appState,
@@ -180,9 +192,39 @@ final class MenuBarManager: ObservableObject {
                 .receive(on: DispatchQueue.main)
                 .sink { [weak self] _ in
                     self?.updateControlItemStates()
+                    self?.updateVisibleOverflowState()
+                }
+                .store(in: &c)
+
+            appState.itemManager.$itemCache
+                .receive(on: DispatchQueue.main)
+                .sink { [weak self] _ in
+                    self?.updateVisibleOverflowState()
+                }
+                .store(in: &c)
+
+            appState.navigationState.$isSettingsPresented
+                .removeDuplicates()
+                .receive(on: DispatchQueue.main)
+                .sink { [weak self] _ in
+                    self?.updateVisibleOverflowState()
                 }
                 .store(in: &c)
         }
+
+        NotificationCenter.default.publisher(for: NSApplication.didChangeScreenParametersNotification)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                self?.updateVisibleOverflowState()
+            }
+            .store(in: &c)
+
+        NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.activeSpaceDidChangeNotification)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                self?.updateVisibleOverflowState()
+            }
+            .store(in: &c)
 
         $settingsWindow
             .removeNil()
@@ -317,6 +359,8 @@ final class MenuBarManager: ObservableObject {
                 } else if isHidingApplicationMenus, !isManuallyHidingApplicationMenus {
                     showApplicationMenus()
                 }
+
+                updateVisibleOverflowState()
             }
             .store(in: &c)
 
@@ -484,6 +528,81 @@ final class MenuBarManager: ObservableObject {
     /// Updates the ``lastShowTimestamp`` property.
     func updateLastShowTimestamp() {
         lastShowTimestamp = .now
+    }
+
+    /// Recomputes which visible items are currently masked by the active app's
+    /// menus and refreshes the Thaw Bar overflow presentation if needed.
+    func updateVisibleOverflowState(for screen: NSScreen? = nil) {
+        let activeScreen = screen ?? NSScreen.screenWithActiveMenuBar ?? NSScreen.main
+        let overflowTags = computeOverflowedVisibleItemTags(on: activeScreen)
+
+        if overflowedVisibleItemTags != overflowTags {
+            overflowedVisibleItemTags = overflowTags
+        }
+
+        refreshVisibleOverflowPresentation(on: activeScreen)
+    }
+
+    /// Computes the set of visible-section items that are no longer usable
+    /// because the active app's menu titles extend into their space.
+    private func computeOverflowedVisibleItemTags(on screen: NSScreen?) -> Set<MenuBarItemTag> {
+        guard
+            let appState,
+            let screen
+        else {
+            return []
+        }
+
+        guard
+            !appState.activeSpace.isFullscreen,
+            !isMenuBarHiddenBySystem,
+            !isMenuBarHiddenBySystemUserDefaults,
+            !appState.navigationState.isSettingsPresented,
+            appState.settings.displaySettings.showOverflowedVisibleItemsInIceBar(for: screen.displayID),
+            let appMenuFrame = screen.getApplicationMenuFrame()
+        else {
+            return []
+        }
+
+        var unavailableBoundaryX = appMenuFrame.maxX
+        if let notch = screen.frameOfNotch,
+           unavailableBoundaryX > (notch.minX - Self.notchGap)
+        {
+            unavailableBoundaryX = notch.maxX + Self.notchGap
+        }
+
+        return Set(
+            appState.itemManager.itemCache[.visible]
+                .filter { item in
+                    !item.isControlItem &&
+                        item.canBeHidden &&
+                        !item.isSystemClone &&
+                        screen.frame.intersects(item.bounds) &&
+                        item.bounds.minX < unavailableBoundaryX
+                }
+                .map(\.tag)
+        )
+    }
+
+    /// Shows or hides the temporary visible-overflow presentation in the
+    /// Thaw Bar, while preserving explicit section presentations.
+    private func refreshVisibleOverflowPresentation(on screen: NSScreen?) {
+        guard
+            let appState,
+            let screen
+        else {
+            return
+        }
+
+        let shouldShowOverflow = !overflowedVisibleItemTags.isEmpty &&
+            appState.settings.displaySettings.showOverflowedVisibleItemsInIceBar(for: screen.displayID) &&
+            !iceBarPanel.isShowingExplicitSection
+
+        if shouldShowOverflow {
+            iceBarPanel.show(visibleOverflow: overflowedVisibleItemTags, on: screen)
+        } else if iceBarPanel.isShowingVisibleOverflow {
+            iceBarPanel.close()
+        }
     }
 
     /// Updates the control item states for all sections.
