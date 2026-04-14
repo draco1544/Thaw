@@ -8,6 +8,32 @@
 
 import Foundation
 import os.lock
+import Security
+
+@available(macOS 26.0, *)
+private enum XPCSigningIdentity {
+    static let hasTeamIdentifier: Bool = {
+        var code: SecCode?
+        guard SecCodeCopySelf([], &code) == errSecSuccess, let code else {
+            return false
+        }
+
+        var staticCode: SecStaticCode?
+        guard SecCodeCopyStaticCode(code, [], &staticCode) == errSecSuccess, let staticCode else {
+            return false
+        }
+
+        var signingInfo: CFDictionary?
+        guard SecCodeCopySigningInformation(staticCode, SecCSFlags(rawValue: kSecCSSigningInformation), &signingInfo) == errSecSuccess,
+              let info = signingInfo as? [String: Any],
+              let teamIdentifier = info[kSecCodeInfoTeamIdentifier as String] as? String
+        else {
+            return false
+        }
+
+        return !teamIdentifier.isEmpty
+    }()
+}
 
 // MARK: - MenuBarItemService.Connection
 
@@ -100,6 +126,7 @@ extension MenuBarItemService {
                 if let session {
                     return session
                 }
+
                 diagLog.debug("getOrCreateSession: creating new XPC session for service '\(self.name)'")
                 let session = try XPCSession(xpcService: name, options: .inactive) { [weak self] error in
                     guard let self else {
@@ -108,7 +135,11 @@ extension MenuBarItemService {
                     diagLog.warning("Session was cancelled with error \(error.localizedDescription)")
                     self.session = nil
                 }
-                session.setPeerRequirement(.isFromSameTeam())
+                if XPCSigningIdentity.hasTeamIdentifier {
+                    session.setPeerRequirement(.isFromSameTeam())
+                } else {
+                    diagLog.notice("getOrCreateSession: skipping same-team peer requirement because the current process has no Team ID")
+                }
                 session.setTargetQueue(queue)
                 try session.activate()
                 diagLog.debug("getOrCreateSession: XPC session activated successfully")

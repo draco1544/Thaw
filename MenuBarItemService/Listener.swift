@@ -6,7 +6,33 @@
 //  Copyright (Thaw) © 2026 Toni Förster
 //  Licensed under the GNU GPLv3
 
+import Security
 import XPC
+
+@available(macOS 26.0, *)
+private enum XPCSigningIdentity {
+    static let hasTeamIdentifier: Bool = {
+        var code: SecCode?
+        guard SecCodeCopySelf([], &code) == errSecSuccess, let code else {
+            return false
+        }
+
+        var staticCode: SecStaticCode?
+        guard SecCodeCopyStaticCode(code, [], &staticCode) == errSecSuccess, let staticCode else {
+            return false
+        }
+
+        var signingInfo: CFDictionary?
+        guard SecCodeCopySigningInformation(staticCode, SecCSFlags(rawValue: kSecCSSigningInformation), &signingInfo) == errSecSuccess,
+              let info = signingInfo as? [String: Any],
+              let teamIdentifier = info[kSecCodeInfoTeamIdentifier as String] as? String
+        else {
+            return false
+        }
+
+        return !teamIdentifier.isEmpty
+    }()
+}
 
 /// A wrapper around an XPC listener object.
 final class Listener {
@@ -78,8 +104,11 @@ final class Listener {
         diagLog.debug("Activating listener")
 
         do {
-            if #available(macOS 26.0, *) {
+            if #available(macOS 26.0, *), XPCSigningIdentity.hasTeamIdentifier {
                 try uncheckedActivateWithSameTeamRequirement()
+            } else if #available(macOS 26.0, *) {
+                diagLog.notice("Activating listener without same-team requirement because the current process has no Team ID")
+                try uncheckedActivate()
             } else {
                 try uncheckedActivate()
             }

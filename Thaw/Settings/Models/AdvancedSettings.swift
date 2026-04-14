@@ -152,7 +152,7 @@ final class AdvancedSettings: ObservableObject {
             .receive(on: DispatchQueue.main)
             .sink { enable in
                 Defaults.set(enable, forKey: .enableDiagnosticLogging)
-                DiagnosticLogger.shared.isEnabled = enable
+                DiagnosticLogger.shared.isEnabled = enable || DiagnosticLogger.shared.launchForcesLogging
             }
             .store(in: &c)
 
