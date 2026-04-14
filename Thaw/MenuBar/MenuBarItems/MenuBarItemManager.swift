@@ -308,6 +308,70 @@ final class MenuBarItemManager: ObservableObject {
         MenuBarItemManager.diagLog.debug("Saved section order: \(newOrder.mapValues(\.count))")
     }
 
+    /// Builds lookup tables that map saved item identifiers back to their
+    /// intended sections.
+    private func savedSectionLookups() -> (
+        baseIdentifier: [String: MenuBarSection.Name],
+        namespace: [String: MenuBarSection.Name]
+    ) {
+        var savedSectionForBaseID = [String: MenuBarSection.Name]()
+        var savedSectionByNamespace = [String: MenuBarSection.Name]()
+        var ambiguousNamespaces = Set<String>()
+
+        for (sectionKeyString, identifiers) in savedSectionOrder {
+            guard let section = sectionName(for: sectionKeyString) else {
+                continue
+            }
+
+            for identifier in identifiers {
+                let baseID = identifier
+                    .split(separator: ":", maxSplits: 2)
+                    .prefix(2)
+                    .joined(separator: ":")
+                savedSectionForBaseID[baseID] = section
+
+                let namespace = identifier
+                    .split(separator: ":", maxSplits: 1)
+                    .first
+                    .map(String.init) ?? identifier
+
+                if ambiguousNamespaces.contains(namespace) {
+                    continue
+                }
+
+                if let existing = savedSectionByNamespace[namespace], existing != section {
+                    savedSectionByNamespace.removeValue(forKey: namespace)
+                    ambiguousNamespaces.insert(namespace)
+                } else {
+                    savedSectionByNamespace[namespace] = section
+                }
+            }
+        }
+
+        return (savedSectionForBaseID, savedSectionByNamespace)
+    }
+
+    /// Returns the logical section an item belongs to, preferring the user's
+    /// saved section over the transient physical position currently reported by
+    /// the window server.
+    func logicalSection(for item: MenuBarItem) -> MenuBarSection.Name? {
+        let lookups = savedSectionLookups()
+        let namespace = item.tag.namespace.description
+        let baseIdentifier = "\(item.tag.namespace):\(item.tag.title)"
+
+        if let saved = lookups.baseIdentifier[baseIdentifier] {
+            return saved
+        }
+
+        if DynamicItemOverrides.isDynamic(namespace),
+           let saved = lookups.namespace[namespace]
+        {
+            return saved
+        }
+
+        return itemCache.address(for: item.tag)?.section
+    }
+
     /// Returns a persistable string key for the given section name.
     private func sectionKey(for section: MenuBarSection.Name) -> String {
         switch section {

@@ -76,9 +76,15 @@ final class AppState: ObservableObject {
 
     /// Async setup actions, run once on first access.
     private lazy var setupTask = Task {
-        // Enable diagnostic logging early if the user had it enabled
-        if Defaults.bool(forKey: .enableDiagnosticLogging) {
+        // Enable diagnostic logging early if the user had it enabled or if
+        // the current launch explicitly requested it.
+        if Defaults.bool(forKey: .enableDiagnosticLogging) ||
+            DiagnosticLogger.shared.launchForcesLogging
+        {
             DiagnosticLogger.shared.isEnabled = true
+            DiagnosticLogger.shared.writeToStandardErrorIfNeeded(
+                "Diagnostic logging forced for this launch.\n"
+            )
         }
 
         diagLog.debug("setupTask: starting AppState setup sequence")

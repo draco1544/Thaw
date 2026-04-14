@@ -549,6 +549,13 @@ final class MenuBarManager: ObservableObject {
         )
 
         if overflowedVisibleItemTags != overflowTags {
+            let displayDescription = activeScreen.map { "\($0.displayID)" } ?? "nil"
+            diagLog.info(
+                """
+                Visible overflow changed on display \(displayDescription): \
+                \(overflowedVisibleItemTags.count) -> \(overflowTags.count)
+                """
+            )
             overflowedVisibleItemTags = overflowTags
         }
 
@@ -609,17 +616,29 @@ final class MenuBarManager: ObservableObject {
             unavailableBoundaryX = notch.maxX + Self.notchGap
         }
 
-        return Set(
-            appState.itemManager.itemCache[.visible]
-                .filter { item in
-                    !item.isControlItem &&
-                        item.canBeHidden &&
-                        !item.isSystemClone &&
-                        screen.frame.intersects(item.bounds) &&
-                        item.bounds.minX < unavailableBoundaryX
-                }
-                .map(\.tag)
+        let candidates = appState.itemManager.itemCache.managedItems.filter { item in
+            !item.isControlItem &&
+                item.canBeHidden &&
+                !item.isSystemClone &&
+                appState.itemManager.logicalSection(for: item) == .visible &&
+                item.bounds.midY >= screen.frame.minY &&
+                item.bounds.midY <= screen.frame.maxY &&
+                (!item.isOnScreen || item.bounds.minX < unavailableBoundaryX)
+        }
+
+        diagLog.debug(
+            """
+            computeOverflowedVisibleItemTags: display=\(screen.displayID) \
+            visibleManaged=\(appState.itemManager.itemCache[.visible].count) \
+            managed=\(appState.itemManager.itemCache.managedItems.count) \
+            appMenuFrame=\(NSStringFromRect(appMenuFrame)) \
+            boundaryX=\(unavailableBoundaryX) \
+            candidates=\(candidates.count) \
+            titles=\(candidates.prefix(8).map(\.displayName).joined(separator: ", "))
+            """
         )
+
+        return Set(candidates.map(\.tag))
     }
 
     /// Shows or hides the temporary visible-overflow presentation in the
@@ -635,6 +654,16 @@ final class MenuBarManager: ObservableObject {
         let shouldShowOverflow = !overflowedVisibleItemTags.isEmpty &&
             appState.settings.displaySettings.showOverflowedVisibleItemsInIceBar(for: screen.displayID) &&
             !iceBarPanel.isShowingExplicitSection
+
+        diagLog.debug(
+            """
+            refreshVisibleOverflowPresentation: display=\(screen.displayID) \
+            shouldShow=\(shouldShowOverflow) \
+            overflowCount=\(overflowedVisibleItemTags.count) \
+            iceBarExplicit=\(iceBarPanel.isShowingExplicitSection) \
+            iceBarVisibleOverflow=\(iceBarPanel.isShowingVisibleOverflow)
+            """
+        )
 
         if shouldShowOverflow {
             iceBarPanel.show(visibleOverflow: overflowedVisibleItemTags, on: screen)

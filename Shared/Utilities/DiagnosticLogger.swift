@@ -103,6 +103,23 @@ final class DiagnosticLogger: @unchecked Sendable {
         return formatter
     }()
 
+    /// Whether diagnostic logging should be forced for the current launch.
+    var launchForcesLogging: Bool {
+        let environment = ProcessInfo.processInfo.environment
+        let arguments = ProcessInfo.processInfo.arguments
+        return environment["THAW_DIAGNOSTIC_LOGGING"] == "1" ||
+            arguments.contains("--diagnostic-logging")
+    }
+
+    /// Whether diagnostic logs should also be mirrored to stderr for the
+    /// current launch.
+    var mirrorsToStandardError: Bool {
+        let environment = ProcessInfo.processInfo.environment
+        let arguments = ProcessInfo.processInfo.arguments
+        return environment["THAW_LOG_TO_STDERR"] == "1" ||
+            arguments.contains("--log-to-stderr")
+    }
+
     /// Serial queue for file I/O.
     private let writeQueue = DispatchQueue(
         label: "com.stonerl.ThawPlus.DiagnosticLogger.writeQueue",
@@ -148,6 +165,10 @@ final class DiagnosticLogger: @unchecked Sendable {
             if let data = header.data(using: .utf8) {
                 handle.write(data)
             }
+
+            writeToStandardErrorIfNeeded(
+                "Thaw diagnostic logging started: \(fileURL.path)\n"
+            )
 
             osLog.info("Diagnostic logging started: \(fileURL.path, privacy: .public)")
         } catch {
@@ -232,11 +253,21 @@ final class DiagnosticLogger: @unchecked Sendable {
 
         guard let data = line.data(using: .utf8) else { return }
 
+        writeToStandardErrorIfNeeded(line)
+
         writeQueue.async { [weak self] in
             self?._fileHandle.withLock { handle in
                 handle?.write(data)
             }
         }
+    }
+
+    /// Writes a string to stderr when launch-time stderr mirroring is enabled.
+    func writeToStandardErrorIfNeeded(_ string: String) {
+        guard mirrorsToStandardError, let data = string.data(using: .utf8) else {
+            return
+        }
+        FileHandle.standardError.write(data)
     }
 }
 
