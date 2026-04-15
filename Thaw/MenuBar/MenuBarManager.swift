@@ -616,27 +616,63 @@ final class MenuBarManager: ObservableObject {
             unavailableBoundaryX = notch.maxX + Self.notchGap
         }
 
-        let candidates = appState.itemManager.itemCache.managedItems.filter { item in
+        let visibleItems = appState.itemManager.itemCache.managedItems.filter { item in
             !item.isControlItem &&
                 item.canBeHidden &&
                 !item.isSystemClone &&
-                appState.itemManager.logicalSection(for: item) == .visible &&
-                item.bounds.midY >= screen.frame.minY &&
-                item.bounds.midY <= screen.frame.maxY &&
-                (!item.isOnScreen || item.bounds.minX < unavailableBoundaryX)
+                appState.itemManager.logicalSection(for: item) == .visible
+        }
+
+        let onScreenWindowIDs = Set(
+            Bridging.getMenuBarWindowList(option: [.onScreen, .activeSpace, .itemsOnly])
+        )
+
+        let candidates = visibleItems.filter { item in
+            let currentBounds = Bridging.getWindowBounds(for: item.windowID) ?? item.bounds
+            let isOnActiveScreen =
+                currentBounds.midY >= screen.frame.minY &&
+                currentBounds.midY <= screen.frame.maxY
+            let isOffScreenPlaceholder = currentBounds.origin.x == -1
+            let isCurrentlyOnScreen = onScreenWindowIDs.contains(item.windowID)
+
+            return isOnActiveScreen &&
+                (
+                    isOffScreenPlaceholder ||
+                        !isCurrentlyOnScreen ||
+                        !item.isOnScreen ||
+                        currentBounds.minX < unavailableBoundaryX
+                )
         }
 
         diagLog.debug(
             """
             computeOverflowedVisibleItemTags: display=\(screen.displayID) \
-            visibleManaged=\(appState.itemManager.itemCache[.visible].count) \
+            visibleManaged=\(visibleItems.count) \
             managed=\(appState.itemManager.itemCache.managedItems.count) \
             appMenuFrame=\(NSStringFromRect(appMenuFrame)) \
             boundaryX=\(unavailableBoundaryX) \
+            onScreenItems=\(onScreenWindowIDs.count) \
             candidates=\(candidates.count) \
             titles=\(candidates.prefix(8).map(\.displayName).joined(separator: ", "))
             """
         )
+
+        if candidates.isEmpty, !visibleItems.isEmpty {
+            let visibleDebugSummary = visibleItems.prefix(12).map { item in
+                let currentBounds = Bridging.getWindowBounds(for: item.windowID) ?? item.bounds
+                let isOffScreenPlaceholder = currentBounds.origin.x == -1
+                let isCurrentlyOnScreen = onScreenWindowIDs.contains(item.windowID)
+                return "\(item.displayName)@\(NSStringFromRect(currentBounds)) onScreen=\(item.isOnScreen) currentOnScreen=\(isCurrentlyOnScreen) offPlaceholder=\(isOffScreenPlaceholder)"
+            }.joined(separator: " | ")
+
+            diagLog.debug(
+                """
+                computeOverflowedVisibleItemTags details: \
+                display=\(screen.displayID) boundaryX=\(unavailableBoundaryX) \
+                items=\(visibleDebugSummary)
+                """
+            )
+        }
 
         return Set(candidates.map(\.tag))
     }

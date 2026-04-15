@@ -226,6 +226,9 @@ struct MenuBarItem: CustomStringConvertible {
 // MARK: - MenuBarItem List
 
 extension MenuBarItem {
+    @MainActor
+    private static var cachedSourcePIDByWindowID = [CGWindowID: (title: String?, pid: pid_t)]()
+
     /// Options that specify the menu bar items in a list.
     struct ListOption: OptionSet {
         let rawValue: Int
@@ -245,6 +248,11 @@ extension MenuBarItem {
     ///   - option: Options that filter the returned list. Pass an empty option set
     ///     to return all available menu bar item windows.
     private static let diagLog = DiagLog(category: "MenuBarItem")
+
+    @MainActor
+    private static func pruneSourcePIDCache(keeping validWindowIDs: Set<CGWindowID>) {
+        cachedSourcePIDByWindowID = cachedSourcePIDByWindowID.filter { validWindowIDs.contains($0.key) }
+    }
 
     static func getMenuBarItemWindows(on display: CGDirectDisplayID? = nil, option: ListOption) -> [WindowInfo] {
         var bridgingOption: Bridging.MenuBarWindowListOption = .itemsOnly
@@ -284,6 +292,7 @@ extension MenuBarItem {
     @MainActor
     private static func getMenuBarItemsExperimental(on display: CGDirectDisplayID?, option: ListOption) async -> [MenuBarItem] {
         let windows = getMenuBarItemWindows(on: display, option: option)
+        pruneSourcePIDCache(keeping: Set(windows.map(\.windowID)))
         diagLog.debug("getMenuBarItemsExperimental: processing \(windows.count) windows for source PID resolution")
 
         var items = await withTaskGroup(of: (Int, MenuBarItem).self) { group in
@@ -330,6 +339,24 @@ extension MenuBarItem {
         // incorrectly assigned to an unresolved item from a
         // *different* app that happens to share the same title
         // (e.g. two apps both using "Item-0").
+        for idx in items.indices where items[idx].sourcePID == nil && !items[idx].isControlItem {
+            let window = windows[idx]
+            guard
+                let cached = cachedSourcePIDByWindowID[window.windowID],
+                cached.title == window.title
+            else {
+                continue
+            }
+
+            diagLog.debug(
+                """
+                getMenuBarItemsExperimental: restoring cached sourcePID \(cached.pid) \
+                for windowID \(window.windowID) (title=\(window.title ?? "<nil>"))
+                """
+            )
+            items[idx] = MenuBarItem(uncheckedItemWindow: window, sourcePID: cached.pid)
+        }
+
         let unresolvedIndices = items.indices.filter { items[$0].sourcePID == nil && !items[$0].isControlItem }
         if !unresolvedIndices.isEmpty {
             // Count how many items each PID has been resolved to.
@@ -373,6 +400,13 @@ extension MenuBarItem {
                     items[idx] = MenuBarItem(uncheckedItemWindow: windows[idx], sourcePID: siblingPID)
                 }
             }
+        }
+
+        for (idx, item) in items.enumerated() {
+            guard let sourcePID = item.sourcePID else {
+                continue
+            }
+            cachedSourcePIDByWindowID[windows[idx].windowID] = (title: windows[idx].title, pid: sourcePID)
         }
 
         // Final pass: assign instance indices to allow individual identification

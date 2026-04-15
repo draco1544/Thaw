@@ -805,6 +805,11 @@ extension MenuBarItemManager {
     ) async {
         MenuBarItemManager.diagLog.debug("uncheckedCacheItems: processing \(items.count) items for caching")
         var context = CacheContext(controlItems: controlItems, displayID: displayID)
+        let previousSectionByWindowID = itemCache.managedItems.reduce(into: [CGWindowID: MenuBarSection.Name]()) { result, cachedItem in
+            if let address = itemCache.address(for: cachedItem.tag) {
+                result[cachedItem.windowID] = address.section
+            }
+        }
 
         var validCount = 0
         var invalidCount = 0
@@ -851,6 +856,19 @@ extension MenuBarItemManager {
                 // Keep track of them separately and use their return destinations to insert
                 // them into the cache once all other items have been handled.
                 context.temporarilyShownItems.append((item, matchingContext.returnDestination))
+                continue
+            }
+
+            if item.tag.namespace == .controlCenter,
+               let previousSection = previousSectionByWindowID[item.windowID]
+            {
+                MenuBarItemManager.diagLog.debug(
+                    """
+                    uncheckedCacheItems: preserving previous section \(previousSection) \
+                    for \(item.logString) via windowID \(item.windowID)
+                    """
+                )
+                context.cache[previousSection].append(item)
                 continue
             }
 
