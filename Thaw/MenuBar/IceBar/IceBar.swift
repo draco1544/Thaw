@@ -395,7 +395,7 @@ private struct IceBarContentView: View {
             guard section == .hidden || section == .alwaysHidden else {
                 return sectionItems
             }
-            return overflowedVisibleItems + sectionItems
+            return sectionItems + overflowedVisibleItems
         case let .visibleOverflow(itemTags):
             return overflowedVisibleItems.filter { itemTags.contains($0.tag) }
         }

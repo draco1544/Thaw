@@ -677,8 +677,8 @@ final class MenuBarManager: ObservableObject {
         return Set(candidates.map(\.tag))
     }
 
-    /// Shows or hides the temporary visible-overflow presentation in the
-    /// Thaw Bar, while preserving explicit section presentations.
+    /// Keeps overflowed visible items embedded in the existing Thaw Bar
+    /// content, and never opens a standalone overflow presentation.
     private func refreshVisibleOverflowPresentation(on screen: NSScreen?) {
         guard
             let appState,
@@ -687,23 +687,20 @@ final class MenuBarManager: ObservableObject {
             return
         }
 
-        let shouldShowOverflow = !overflowedVisibleItemTags.isEmpty &&
-            appState.settings.displaySettings.showOverflowedVisibleItemsInIceBar(for: screen.displayID) &&
-            !iceBarPanel.isShowingExplicitSection
+        let hasEmbeddedOverflow = !overflowedVisibleItemTags.isEmpty &&
+            appState.settings.displaySettings.showOverflowedVisibleItemsInIceBar(for: screen.displayID)
 
         diagLog.debug(
             """
             refreshVisibleOverflowPresentation: display=\(screen.displayID) \
-            shouldShow=\(shouldShowOverflow) \
+            embeddedOverflow=\(hasEmbeddedOverflow) \
             overflowCount=\(overflowedVisibleItemTags.count) \
             iceBarExplicit=\(iceBarPanel.isShowingExplicitSection) \
             iceBarVisibleOverflow=\(iceBarPanel.isShowingVisibleOverflow)
             """
         )
 
-        if shouldShowOverflow {
-            iceBarPanel.show(visibleOverflow: overflowedVisibleItemTags, on: screen)
-        } else if iceBarPanel.isShowingVisibleOverflow {
+        if iceBarPanel.isShowingVisibleOverflow {
             iceBarPanel.close()
         }
     }
