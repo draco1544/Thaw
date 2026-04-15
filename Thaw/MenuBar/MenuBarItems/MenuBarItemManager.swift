@@ -2913,8 +2913,9 @@ extension MenuBarItemManager {
 // MARK: - Control Item Order
 
 extension MenuBarItemManager {
-    /// Relocates any newly appearing items that macOS placed to the left
-    /// of our control items back into the visible section.
+    /// Relocates any newly appearing hideable items that macOS placed to the
+    /// far left so they become the leading item in the hidden section instead
+    /// of staying visible.
     ///
     /// Returns true if a relocation was performed.
     private func relocateNewLeftmostItems(
@@ -3093,11 +3094,36 @@ extension MenuBarItemManager {
         knownItemIdentifiers.insert(identifier)
         persistKnownItemIdentifiers()
 
-        // Move only the offending item to the right of the hidden control item (i.e., into visible section).
+        let destination: MoveDestination
+        if let alwaysHidden = controlItems.alwaysHidden {
+            destination = .rightOfItem(alwaysHidden)
+        } else {
+            let hiddenItems = items
+                .filter {
+                    guard
+                        $0.windowID != candidate.windowID,
+                        !$0.isControlItem,
+                        $0.canBeHidden
+                    else {
+                        return false
+                    }
+                    return $0.bounds.maxX <= hiddenBounds.minX
+                }
+                .sorted { $0.bounds.minX < $1.bounds.minX }
+
+            if let firstHiddenItem = hiddenItems.first {
+                destination = .leftOfItem(firstHiddenItem)
+            } else {
+                destination = .leftOfItem(controlItems.hidden)
+            }
+        }
+
+        // Move only the offending item into the hidden section so it appears
+        // at the leading edge of the secondary bar instead of remaining visible.
         do {
             try await move(
                 item: candidate,
-                to: .rightOfItem(controlItems.hidden),
+                to: destination,
                 skipInputPause: true
             )
         } catch {
