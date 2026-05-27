@@ -13,23 +13,6 @@ import SwiftUI
 
 private enum IceBarPresentation: Hashable {
     case section(MenuBarSection.Name)
-    case visibleOverflow(Set<MenuBarItemTag>)
-
-    var section: MenuBarSection.Name {
-        switch self {
-        case let .section(section):
-            return section
-        case .visibleOverflow:
-            return .visible
-        }
-    }
-
-    var isVisibleOverflow: Bool {
-        if case .visibleOverflow = self {
-            return true
-        }
-        return false
-    }
 }
 
 // MARK: - IceBarPanel
@@ -47,7 +30,12 @@ final class IceBarPanel: NSPanel {
 
     /// The currently displayed section, if any.
     var currentSection: MenuBarSection.Name? {
-        presentation?.section
+        switch presentation {
+        case let .section(section):
+            return section
+        case .none:
+            return nil
+        }
     }
 
     /// Whether the panel is currently showing a real section presentation.
@@ -56,11 +44,6 @@ final class IceBarPanel: NSPanel {
             return true
         }
         return false
-    }
-
-    /// Whether the panel is currently showing visible overflow items.
-    var isShowingVisibleOverflow: Bool {
-        presentation?.isVisibleOverflow == true
     }
 
     /// A Boolean value that indicates whether to show the panel at
@@ -210,19 +193,6 @@ final class IceBarPanel: NSPanel {
         show(presentation: .section(section), on: screen, triggeredByHotkey: triggeredByHotkey)
     }
 
-    /// Shows the panel on the given screen, displaying the given
-    /// filtered overflow of visible items.
-    func show(
-        visibleOverflow itemTags: Set<MenuBarItemTag>,
-        on screen: NSScreen,
-        triggeredByHotkey: Bool = false
-    ) {
-        guard !itemTags.isEmpty else {
-            return
-        }
-        show(presentation: .visibleOverflow(itemTags), on: screen, triggeredByHotkey: triggeredByHotkey)
-    }
-
     /// Shows the panel using the given presentation.
     private func show(
         presentation: IceBarPresentation,
@@ -301,7 +271,7 @@ final class IceBarPanel: NSPanel {
         case let .section(name):
             appState.menuBarManager.section(withName: name)?.hide()
             close()
-        case .some(.visibleOverflow), .none:
+        case .none:
             close()
         }
     }
@@ -376,7 +346,10 @@ private struct IceBarContentView: View {
     let dismissPresentation: () -> Void
 
     private var section: MenuBarSection.Name {
-        presentation.section
+        switch presentation {
+        case let .section(section):
+            return section
+        }
     }
 
     private var overflowedVisibleItemTags: Set<MenuBarItemTag> {
@@ -396,8 +369,6 @@ private struct IceBarContentView: View {
                 return sectionItems
             }
             return sectionItems + overflowedVisibleItems
-        case let .visibleOverflow(itemTags):
-            return overflowedVisibleItems.filter { itemTags.contains($0.tag) }
         }
     }
 
@@ -528,20 +499,6 @@ private struct IceBarContentView: View {
             .onAppear {
                 Self.diagLog.debug("IceBar content: showing '\(self.cacheGracePeriodActive ? "Loading…" : "No items")' for section \(self.section.logString) (grace period active: \(self.cacheGracePeriodActive))")
             }
-        } else if presentation.isVisibleOverflow, items.isEmpty {
-            HStack {
-                if cacheGracePeriodActive {
-                    Text("Loading overflowed visible items…")
-                    ProgressView()
-                        .controlSize(.small)
-                } else {
-                    Text("No overflowed visible items")
-                }
-            }
-            .padding(.horizontal, 10)
-            .onAppear {
-                Self.diagLog.debug("IceBar content: showing 'No overflowed visible items' for visible overflow presentation (grace period active: \(self.cacheGracePeriodActive), filtered count: \(self.items.count))")
-            }
         } else if itemManager.itemCache.managedItems.isEmpty {
             HStack {
                 if loadingTimedOut {
@@ -645,7 +602,7 @@ private struct IceBarItemView: View {
     let isLightBackground: Bool
 
     private var prefersTemporaryShow: Bool {
-        presentation.isVisibleOverflow || isOverflowedVisibleItem
+        isOverflowedVisibleItem
     }
 
     private var leftClickAction: () -> Void {

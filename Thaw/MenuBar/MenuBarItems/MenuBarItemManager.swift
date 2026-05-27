@@ -119,6 +119,7 @@ final class MenuBarItemManager: ObservableObject {
 
     /// A timer for rehiding temporarily shown menu bar items.
     private var rehideTimer: Timer?
+    private var rehideTimerInterval: TimeInterval?
     private var rehideCancellable: AnyCancellable?
 
     /// Timestamp of the most recent menu bar item move operation.
@@ -2475,16 +2476,31 @@ extension MenuBarItemManager {
 
     /// Schedules a timer for the given interval that rehides the
     /// temporarily shown items when fired.
+    private func cancelRehideScheduling() {
+        rehideTimer?.invalidate()
+        rehideTimer = nil
+        rehideTimerInterval = nil
+        rehideCancellable?.cancel()
+        rehideCancellable = nil
+    }
+
     private func runRehideTimer(for interval: TimeInterval? = nil) {
         let interval = interval ?? 15
+        if let rehideTimer, rehideTimer.isValid, rehideTimerInterval == interval {
+            MenuBarItemManager.diagLog.debug("Rehide timer already scheduled for interval: \(interval)")
+            return
+        }
+
         MenuBarItemManager.diagLog.debug("Running rehide timer for interval: \(interval)")
-        rehideTimer?.invalidate()
-        rehideCancellable?.cancel()
+        cancelRehideScheduling()
+        rehideTimerInterval = interval
         rehideTimer = .scheduledTimer(withTimeInterval: interval, repeats: false) { [weak self] timer in
             guard let self else {
                 timer.invalidate()
                 return
             }
+            self.rehideTimer = nil
+            self.rehideTimerInterval = nil
             MenuBarItemManager.diagLog.debug("Rehide timer fired")
             Task {
                 await self.rehideTemporarilyShownItems()
@@ -2492,6 +2508,7 @@ extension MenuBarItemManager {
         }
         // Also rehide when frontmost app changes (smart-ish).
         rehideCancellable = NSWorkspace.shared.publisher(for: \.frontmostApplication)
+            .dropFirst()
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
                 guard let self else { return }
@@ -2538,8 +2555,7 @@ extension MenuBarItemManager {
         // This prevents stale contexts from accumulating when the user opens multiple
         // temporary items in quick succession.
         if !temporarilyShownItemContexts.isEmpty {
-            rehideTimer?.invalidate()
-            rehideCancellable?.cancel()
+            cancelRehideScheduling()
             await rehideTemporarilyShownItems(force: true, isCalledFromTemporarilyShow: true)
 
             // If some items failed to rehide (e.g. move timed out), don't remove
@@ -2624,7 +2640,7 @@ extension MenuBarItemManager {
         )
         temporarilyShownItemContexts.append(context)
 
-        rehideTimer?.invalidate()
+        cancelRehideScheduling()
         defer {
             runRehideTimer()
         }
@@ -2758,6 +2774,7 @@ extension MenuBarItemManager {
             return
         }
         guard !temporarilyShownItemContexts.isEmpty else {
+            cancelRehideScheduling()
             return
         }
 
@@ -2873,6 +2890,7 @@ extension MenuBarItemManager {
         // If force-hiding, we don't want to re-queue them for long delays.
         // We want them back in the section immediately or kept in context.
         if failedContexts.isEmpty {
+            cancelRehideScheduling()
             MenuBarItemManager.diagLog.debug("All items were successfully rehidden")
         } else {
             MenuBarItemManager.diagLog.error(

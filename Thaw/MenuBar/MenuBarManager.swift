@@ -695,14 +695,9 @@ final class MenuBarManager: ObservableObject {
             refreshVisibleOverflowPresentation: display=\(screen.displayID) \
             embeddedOverflow=\(hasEmbeddedOverflow) \
             overflowCount=\(overflowedVisibleItemTags.count) \
-            iceBarExplicit=\(iceBarPanel.isShowingExplicitSection) \
-            iceBarVisibleOverflow=\(iceBarPanel.isShowingVisibleOverflow)
+            iceBarExplicit=\(iceBarPanel.isShowingExplicitSection)
             """
         )
-
-        if iceBarPanel.isShowingVisibleOverflow {
-            iceBarPanel.close()
-        }
     }
 
     /// Updates the control item states for all sections.
